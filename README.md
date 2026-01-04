@@ -39,3 +39,10 @@ All backend interactions are abstracted using protocol-based service layers:
 ---
 
 API keys and sensitive credentials are **not included** in the repository.
+
+## Screenshots
+
+![Login](login.png)
+![List](list.png)
+![Map](map.png) 
+

@@ -7,6 +7,17 @@ This project focuses on clean UIKit architecture, async networking, and real-wor
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="launchscreen.png" width="220" />
+  <img src="login.png" width="220" />
+  <img src="list.png" width="220" />
+  <img src="map.png" width="220" />
+</p>
+
+---
+
 # Tech Stack
 - UIKit
 - Swift
@@ -39,10 +50,3 @@ All backend interactions are abstracted using protocol-based service layers:
 ---
 
 API keys and sensitive credentials are **not included** in the repository.
-
-## Screenshots
-
-![Login](login.png)
-![List](list.png)
-![Map](map.png) 
-

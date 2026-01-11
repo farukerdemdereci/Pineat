@@ -12,4 +12,3 @@ protocol ListServiceProtocol {
     
     func deleteLocations(id: UUID) async throws
 }
-

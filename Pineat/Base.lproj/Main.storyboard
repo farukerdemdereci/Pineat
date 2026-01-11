@@ -69,7 +69,7 @@
         <!--Item-->
         <scene sceneID="Wwu-jM-n21">
             <objects>
-                <viewController id="7iI-d8-SJ3" customClass="LogoutViewController" customModule="PinEatUIKit" customModuleProvider="target" sceneMemberID="viewController">
+                <viewController id="7iI-d8-SJ3" customClass="ProfileViewController" customModule="PinEatUIKit" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="Stj-1S-efR">
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>

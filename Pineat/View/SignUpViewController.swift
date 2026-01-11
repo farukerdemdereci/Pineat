@@ -9,8 +9,16 @@ import UIKit
 
 class SignUpViewController: UIViewController {
 
-    // MARK: - Properties
-    private let vm = AuthViewModel()
+    private let vm: AuthViewModel
+    
+    init(vm: AuthViewModel) {
+        self.vm = vm
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     // MARK: - UI Elements
     private let backgroundImageView: UIImageView = {
@@ -103,13 +111,9 @@ class SignUpViewController: UIViewController {
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupUI()
+        setupViews()
         setupActions()
         setupKeyboardObservers()
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
     }
 }
 
@@ -124,41 +128,53 @@ extension SignUpViewController {
     }
 
     @objc private func signUpClicked() {
-        guard let email = emailTextField.text, !email.isEmpty,
-              let password = passwordTextField.text, !password.isEmpty,
-              let confirm = confirmPasswordTextField.text, !confirm.isEmpty else {
-            showAlert(title: "Hata", message: "Lütfen tüm alanları doldurun.")
-            return
-        }
-        
-        if password != confirm {
-            showAlert(title: "Hata", message: "Şifreler birbiriyle uyuşmuyor.")
-            return
-        }
-        
-        activityIndicator.startAnimating()
-        signUpButton.setTitle("", for: .normal)
-        signUpButton.isEnabled = false
-        
-        Task {
-            await vm.signUp(email: email, password: password)
+            guard let email = emailTextField.text, !email.isEmpty,
+                  let password = passwordTextField.text, !password.isEmpty,
+                  let confirm = confirmPasswordTextField.text, !confirm.isEmpty else {
+                showAlert(title: "Hata", message: "Lütfen tüm alanları doldurun.")
+                return
+            }
             
-            DispatchQueue.main.async {
-                self.activityIndicator.stopAnimating()
-                self.signUpButton.setTitle("Kayıt Ol", for: .normal)
-                self.signUpButton.isEnabled = true
+            if password != confirm {
+                showAlert(title: "Hata", message: "Şifreler birbiriyle uyuşmuyor.")
+                return
+            }
+            setLoading(true)
+            
+            Task {
+                await vm.signUp(email: email, password: password)
                 
-                if let error = self.vm.errorMessage {
-                    self.showAlert(title: "Hata", message: error)
+                setLoading(false)
+                
+                if let error = vm.errorMessage {
+                    showAlert(title: "Hata", message: error)
+                    
                 } else {
                     self.dismiss(animated: true)
                 }
             }
         }
-    }
     
     @objc private func backClicked() {
         self.dismiss(animated: true)
+    }
+    
+    private func setLoading(_ isLoading: Bool) {
+        if isLoading {
+            activityIndicator.startAnimating()
+            signUpButton.setTitle("", for: .normal)
+            signUpButton.isEnabled = false
+        } else {
+            activityIndicator.stopAnimating()
+            signUpButton.setTitle("Kayıt Ol", for: .normal)
+            signUpButton.isEnabled = true
+        }
+    }
+    
+    func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Tamam", style: .default))
+        self.present(alert, animated: true)
     }
 }
 
@@ -185,10 +201,9 @@ extension SignUpViewController {
     }
 }
 
-// MARK: - UI Layout & Helpers
+// MARK: - Setup Views
 extension SignUpViewController {
-    
-    private func setupUI() {
+    private func setupViews() {
         view.addSubview(backgroundImageView)
         view.addSubview(pageTitleLabel)
         view.addSubview(glassCardView)
@@ -232,11 +247,5 @@ extension SignUpViewController {
             activityIndicator.centerXAnchor.constraint(equalTo: signUpButton.centerXAnchor),
             activityIndicator.centerYAnchor.constraint(equalTo: signUpButton.centerYAnchor)
         ])
-    }
-    
-    func showAlert(title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Tamam", style: .default))
-        self.present(alert, animated: true)
     }
 }

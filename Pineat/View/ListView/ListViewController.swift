@@ -5,20 +5,27 @@
 //  Created by Faruk Dereci on 18.12.2025.
 //
 
-import Foundation
 import UIKit
 import CoreLocation
 
 class ListViewController: UIViewController {
     
-    // MARK: - Properties
-    private let vm = ListViewModel()
+    private let vm: ListViewModel
+    
+    init(vm: ListViewModel) {
+        self.vm = vm
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
     private let locationManager = CLLocationManager()
     
+    // MARK: - UI Elements
     private let tableView: UITableView = {
         let table = UITableView()
-        table.translatesAutoresizingMaskIntoConstraints = false
         table.register(ListCustomCell.self, forCellReuseIdentifier: ListCustomCell.identifier)
+        table.translatesAutoresizingMaskIntoConstraints = false
         return table
     }()
     
@@ -39,26 +46,34 @@ class ListViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        
-        setupTopSafeAreaGradient()
+        setupViews()
+        setupActions()
         setupNavigationStyle()
         setupSearchController()
         setupLocationManager()
-        setupViews()
     }
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         fetchLocations()
     }
+}
+
+// MARK: - Actions
+extension ListViewController {
+    private func setupActions() {
+        emptyStateButton.addTarget(self, action: #selector(emptyStateTapped), for: .touchUpInside)
+    }
+
+    @objc private func emptyStateTapped() {
+        self.tabBarController?.selectedIndex = 1
+    }
     
-    // MARK: - Networking
     private func fetchLocations() {
         Task {
             await vm.fetchLocations()
             DispatchQueue.main.async {
                 self.tableView.reloadData()
-                
                 let isEmpty = self.vm.filteredArray.isEmpty
                 self.tableView.isHidden = isEmpty
                 self.emptyStateButton.isHidden = !isEmpty
@@ -78,13 +93,9 @@ class ListViewController: UIViewController {
             }
         }
     }
-    
-    @objc private func emptyStateTapped() {
-        self.tabBarController?.selectedIndex = 1
-    }
 }
 
-// MARK: - TableView Methods
+// MARK: - TableView
 extension ListViewController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -137,7 +148,6 @@ extension ListViewController: UISearchResultsUpdating, CLLocationManagerDelegate
         let isEmpty = vm.filteredArray.isEmpty
         tableView.isHidden = isEmpty
         emptyStateButton.isHidden = !isEmpty
-        
         tableView.reloadData()
     }
 
@@ -148,14 +158,14 @@ extension ListViewController: UISearchResultsUpdating, CLLocationManagerDelegate
     }
 }
 
-// MARK: - UI Setup Extensions
+// MARK: - Setup Views
 extension ListViewController {
     
     private func setupViews() {
         view.addSubview(tableView)
         view.addSubview(emptyStateButton)
         
-        emptyStateButton.addTarget(self, action: #selector(emptyStateTapped), for: .touchUpInside)
+        setupTopSafeAreaGradient()
         
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),

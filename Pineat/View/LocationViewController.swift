@@ -12,9 +12,19 @@ import PhotosUI
 
 class LocationViewController: UIViewController {
     
+    private let vm: LocationViewModel
+    
+    init(vm: LocationViewModel) {
+        self.vm = vm
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
     // MARK: - Properties
     var selectedLocationFromList: Location?
-    private let vm = LocationViewModel()
     private let locationManager = CLLocationManager()
     private var isFirstTime = true
     private var infoCardBottomConstraint: NSLayoutConstraint?
@@ -31,11 +41,11 @@ class LocationViewController: UIViewController {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
         view.backgroundColor = .white
-        view.layer.cornerRadius = 20
+        view.layer.cornerRadius = 30
         view.layer.shadowColor = UIColor.black.cgColor
-        view.layer.shadowOpacity = 0.2
-        view.layer.shadowOffset = CGSize(width: 0, height: -2)
-        view.layer.shadowRadius = 10
+        view.layer.shadowOpacity = 0.12
+        view.layer.shadowOffset = CGSize(width: 0, height: 8)
+        view.layer.shadowRadius = 15
         return view
     }()
     
@@ -54,28 +64,32 @@ class LocationViewController: UIViewController {
     
     private let titleTextField: UITextField = {
         let tf = UITextField()
-        tf.placeholder = "Mekan Adı..."
-        tf.font = .systemFont(ofSize: 18, weight: .bold)
+        tf.placeholder = "Mekan Adı"
+        tf.font = .systemFont(ofSize: 20, weight: .bold)
         tf.translatesAutoresizingMaskIntoConstraints = false
         return tf
     }()
     
-    private let descriptionTextField: UITextField = {
-        let tf = UITextField()
-        tf.placeholder = "Kısa bir not ekle..."
-        tf.font = .systemFont(ofSize: 14)
-        tf.textColor = .secondaryLabel
-        tf.translatesAutoresizingMaskIntoConstraints = false
-        return tf
+    private let descriptionTextView: UITextView = {
+        let tv = UITextView()
+        tv.translatesAutoresizingMaskIntoConstraints = false
+        tv.text = "Kısa bir açıklama ekle..."
+        tv.font = .systemFont(ofSize: 14)
+        tv.textColor = .lightGray
+        tv.backgroundColor = .clear
+        tv.textContainerInset = .zero
+        tv.textContainer.lineFragmentPadding = 0
+        tv.isScrollEnabled = true
+        return tv
     }()
     
     private let saveButton: UIButton = {
         let btn = UIButton(type: .system)
         btn.setTitle("Konumu Kaydet", for: .normal)
-        btn.backgroundColor = UIColor(red: 0.0, green: 0.45, blue: 0.74, alpha: 1.0)
+        btn.backgroundColor = UIColor(red: 0.20, green: 0.67, blue: 0.45, alpha: 1.0)
         btn.setTitleColor(.white, for: .normal)
         btn.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
-        btn.layer.cornerRadius = 12
+        btn.layer.cornerRadius = 16
         btn.translatesAutoresizingMaskIntoConstraints = false
         return btn
     }()
@@ -83,11 +97,10 @@ class LocationViewController: UIViewController {
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .white
-        setupLayout()
+        setupViews()
+        setupActions()
+        setupKeyboardObservers()
         setupLocationManager()
-        setupGestures()
-        setupKeyboardNotifications()
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -95,205 +108,93 @@ class LocationViewController: UIViewController {
         fetchAndShowAnnotations()
         focusOnSelectedLocation()
     }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
 }
 
-// MARK: - Map Logic & Annotations
-extension LocationViewController: MKMapViewDelegate, CLLocationManagerDelegate {
-    
-    private func fetchAndShowAnnotations() {
-        Task {
-            await vm.fetchAllLocations()
-            DispatchQueue.main.async {
-                let oldAnnotations = self.mapView.annotations.filter { !($0 is MKUserLocation) }
-                self.mapView.removeAnnotations(oldAnnotations)
-                
-                for loc in self.vm.locationArray {
-                    let pin = MKPointAnnotation()
-                    pin.title = loc.title
-                    pin.subtitle = loc.description
-                    pin.coordinate = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
-                    self.mapView.addAnnotation(pin)
-                }
-            }
-        }
+// MARK: - Actions
+extension LocationViewController: UITextViewDelegate {
+    private func setupActions() {
+        saveButton.addTarget(self, action: #selector(saveButtonClicked), for: .touchUpInside)
+        
+        descriptionTextView.delegate = self
+
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(chooseLocation))
+        mapView.addGestureRecognizer(longPress)
+        mapView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dismissEverything)))
+        imagePickerView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTapImage)))
     }
 
-    private func focusOnSelectedLocation() {
-        if let target = selectedLocationFromList {
-            let coordinate = CLLocationCoordinate2D(latitude: target.latitude, longitude: target.longitude)
-            let span = MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
-            let region = MKCoordinateRegion(center: coordinate, span: span)
-            mapView.setRegion(region, animated: true)
-            self.isFirstTime = false
-        }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let lastLocation = locations.last else { return }
-        if isFirstTime {
-            let region = MKCoordinateRegion(center: lastLocation.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
-            mapView.setRegion(region, animated: true)
-            isFirstTime = false
-        }
-    }
-
-    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        if annotation is MKUserLocation { return nil }
-        let identifier = "Pin"
-        var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
-        if annotationView == nil {
-            annotationView = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-            annotationView?.canShowCallout = true
-            annotationView?.rightCalloutAccessoryView = UIButton(type: .detailDisclosure)
-        } else {
-            annotationView?.annotation = annotation
-        }
-        return annotationView
-    }
-
-    func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
-        if let annotation = view.annotation {
-            let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
-            let placemark = MKPlacemark(coordinate: annotation.coordinate)
-            let mapItem = MKMapItem(placemark: placemark)
-            mapItem.name = annotation.title ?? "Hedef Konum"
-            mapItem.openInMaps(launchOptions: launchOptions)
-        }
-    }
-}
-
-// MARK: - Gestures & Actions
-extension LocationViewController {
-    
-    @objc func chooseLocation(gestureRecognizer: UILongPressGestureRecognizer) {
-        if gestureRecognizer.state == .began {
-            let touchedPoint = gestureRecognizer.location(in: mapView)
-            let coordinate = mapView.convert(touchedPoint, toCoordinateFrom: mapView)
-            
-            vm.chosenLatitude = coordinate.latitude
-            vm.chosenLongitude = coordinate.longitude
-            
-            let tempPins = self.mapView.annotations.filter { $0.title == "Yeni Mekan" }
-            mapView.removeAnnotations(tempPins)
-            
-            let annotation = MKPointAnnotation()
-            annotation.coordinate = coordinate
-            annotation.title = "Yeni Mekan"
-            mapView.addAnnotation(annotation)
-            
-            resetFields()
-            showInfoCard()
-        }
-    }
-
-    @objc func saveButtonClicked() {
+    @objc private func saveButtonClicked() {
         guard let title = titleTextField.text, !title.isEmpty else { return }
-        vm.saveLocations(title: title, description: descriptionTextField.text ?? "", latitude: vm.chosenLatitude, longitude: vm.chosenLongitude, image: imagePickerView.image)
-        dismissEverything()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { self.fetchAndShowAnnotations() }
+        let description = descriptionTextView.textColor == .lightGray ? "" : descriptionTextView.text
+        
+        Task {
+            await vm.saveLocations(title: title, description: description ?? "",
+                                   latitude: vm.chosenLatitude, longitude: vm.chosenLongitude,
+                                   image: imagePickerView.image)
+            hideInfoCard()
+            view.endEditing(true)
+            resetFields()
+            fetchAndShowAnnotations()
+        }
     }
 
-    @objc func dismissEverything() {
+    @objc private func dismissEverything() {
         view.endEditing(true)
-        hideInfoCard()
+        if (titleTextField.text?.isEmpty ?? true) && (descriptionTextView.textColor == .lightGray) {
+            hideInfoCard()
+        }
     }
-    
+
     private func resetFields() {
         titleTextField.text = ""
-        descriptionTextField.text = ""
-        imagePickerView.image = UIImage(systemName: "photo.badge.plus")
+        descriptionTextView.text = "Kısa bir açıklama ekle..."
+        descriptionTextView.textColor = .lightGray
+        imagePickerView.image = UIImage(systemName: "camera.circle.fill")
         imagePickerView.contentMode = .center
     }
-}
 
-// MARK: - Image Picker Logic
-extension LocationViewController: PHPickerViewControllerDelegate {
-    @objc func didTapImage() {
-        var config = PHPickerConfiguration()
-        config.filter = .images
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = self
-        present(picker, animated: true)
-    }
-    
-    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
-        results.first?.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] image, _ in
-            if let selectedImage = image as? UIImage {
-                DispatchQueue.main.async {
-                    self?.imagePickerView.image = selectedImage
-                    self?.imagePickerView.contentMode = .scaleAspectFill
-                }
-            }
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        if textView.textColor == .lightGray {
+            textView.text = nil
+            textView.textColor = .black
         }
     }
 }
 
-// MARK: - Keyboard & Layout Setup
+// MARK: - Keyboard Handling
 extension LocationViewController {
-    
-    private func setupKeyboardNotifications() {
+    private func setupKeyboardObservers() {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
     }
 
-    @objc func keyboardWillShow(notification: NSNotification) {
-        if let keyboardSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
-            if self.view.frame.origin.y == 0 { self.view.frame.origin.y -= keyboardSize.height }
+    @objc private func keyboardWillShow(notification: NSNotification) {
+        if let kbSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
+            if self.view.frame.origin.y == 0 {
+                self.view.frame.origin.y -= (kbSize.height - 100)
+            }
         }
     }
 
-    @objc func keyboardWillHide(notification: NSNotification) {
-        if self.view.frame.origin.y != 0 { self.view.frame.origin.y = 0 }
-    }
-
-    private func showInfoCard() {
-        infoCardBottomConstraint?.constant = -160
-        UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 1, options: .curveEaseOut) {
-            self.view.layoutIfNeeded()
+    @objc private func keyboardWillHide(notification: NSNotification) {
+        if self.view.frame.origin.y != 0 {
+            self.view.frame.origin.y = 0
         }
     }
-    
-    private func hideInfoCard() {
-        infoCardBottomConstraint?.constant = 450
-        UIView.animate(withDuration: 0.4) { self.view.layoutIfNeeded() }
-    }
+}
 
-    private func setupLocationManager() {
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
-        mapView.delegate = self
-    }
-
-    private func setupGestures() {
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(chooseLocation))
-        longPress.minimumPressDuration = 1.0
-        mapView.addGestureRecognizer(longPress)
-        
-        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissEverything))
-        tap.cancelsTouchesInView = false
-        mapView.addGestureRecognizer(tap)
-        
-        let imageTap = UITapGestureRecognizer(target: self, action: #selector(didTapImage))
-        imagePickerView.addGestureRecognizer(imageTap)
-    }
-
-    private func setupLayout() {
+// MARK: - Setup Views
+extension LocationViewController {
+    private func setupViews() {
         view.addSubview(mapView)
         view.addSubview(infoCard)
-        view.addSubview(saveButton)
+        
         infoCard.addSubview(imagePickerView)
         infoCard.addSubview(titleTextField)
-        infoCard.addSubview(descriptionTextField)
+        infoCard.addSubview(descriptionTextView)
+        infoCard.addSubview(saveButton)
         
-        saveButton.addTarget(self, action: #selector(saveButtonClicked), for: .touchUpInside)
-        infoCardBottomConstraint = infoCard.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 450)
+        infoCardBottomConstraint = infoCard.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 500)
 
         NSLayoutConstraint.activate([
             mapView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -301,28 +202,115 @@ extension LocationViewController {
             mapView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            infoCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            infoCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            infoCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 25),
+            infoCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -25),
             infoCardBottomConstraint!,
-            infoCard.heightAnchor.constraint(equalToConstant: 120),
+            infoCard.heightAnchor.constraint(equalToConstant: 200),
             
-            imagePickerView.leadingAnchor.constraint(equalTo: infoCard.leadingAnchor, constant: 12),
-            imagePickerView.centerYAnchor.constraint(equalTo: infoCard.centerYAnchor),
-            imagePickerView.widthAnchor.constraint(equalToConstant: 90),
-            imagePickerView.heightAnchor.constraint(equalToConstant: 90),
+            imagePickerView.leadingAnchor.constraint(equalTo: infoCard.leadingAnchor, constant: 20),
+            imagePickerView.topAnchor.constraint(equalTo: infoCard.topAnchor, constant: 20),
+            imagePickerView.widthAnchor.constraint(equalToConstant: 85),
+            imagePickerView.heightAnchor.constraint(equalToConstant: 85),
             
-            titleTextField.topAnchor.constraint(equalTo: infoCard.topAnchor, constant: 20),
+            titleTextField.topAnchor.constraint(equalTo: imagePickerView.topAnchor, constant: 5),
             titleTextField.leadingAnchor.constraint(equalTo: imagePickerView.trailingAnchor, constant: 15),
-            titleTextField.trailingAnchor.constraint(equalTo: infoCard.trailingAnchor, constant: -10),
+            titleTextField.trailingAnchor.constraint(equalTo: infoCard.trailingAnchor, constant: -15),
 
-            descriptionTextField.topAnchor.constraint(equalTo: titleTextField.bottomAnchor, constant: 8),
-            descriptionTextField.leadingAnchor.constraint(equalTo: titleTextField.leadingAnchor),
-            descriptionTextField.trailingAnchor.constraint(equalTo: titleTextField.trailingAnchor),
+            descriptionTextView.topAnchor.constraint(equalTo: titleTextField.bottomAnchor, constant: 10),
+            descriptionTextView.leadingAnchor.constraint(equalTo: titleTextField.leadingAnchor),
+            descriptionTextView.trailingAnchor.constraint(equalTo: titleTextField.trailingAnchor),
+            descriptionTextView.heightAnchor.constraint(equalToConstant: 45),
 
-            saveButton.topAnchor.constraint(equalTo: infoCard.bottomAnchor, constant: 12),
-            saveButton.leadingAnchor.constraint(equalTo: infoCard.leadingAnchor),
-            saveButton.trailingAnchor.constraint(equalTo: infoCard.trailingAnchor),
-            saveButton.heightAnchor.constraint(equalToConstant: 50)
+            saveButton.bottomAnchor.constraint(equalTo: infoCard.bottomAnchor, constant: -20),
+            saveButton.leadingAnchor.constraint(equalTo: infoCard.leadingAnchor, constant: 20),
+            saveButton.trailingAnchor.constraint(equalTo: infoCard.trailingAnchor, constant: -20),
+            saveButton.heightAnchor.constraint(equalToConstant: 48)
         ])
+    }
+}
+
+// MARK: - Map & PHPicker & Helper Logic
+extension LocationViewController: MKMapViewDelegate, CLLocationManagerDelegate, PHPickerViewControllerDelegate {
+    
+    private func setupLocationManager() {
+        locationManager.delegate = self
+        locationManager.requestWhenInUseAuthorization()
+        locationManager.startUpdatingLocation()
+        mapView.delegate = self
+    }
+
+    private func fetchAndShowAnnotations() {
+        Task {
+            await vm.fetchLocations()
+            let oldAnnotations = self.mapView.annotations.filter { !($0 is MKUserLocation) }
+            self.mapView.removeAnnotations(oldAnnotations)
+            for loc in self.vm.locationArray {
+                let pin = MKPointAnnotation()
+                pin.title = loc.title
+                pin.coordinate = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
+                self.mapView.addAnnotation(pin)
+            }
+        }
+    }
+
+    @objc private func chooseLocation(gestureRecognizer: UILongPressGestureRecognizer) {
+        if gestureRecognizer.state == .began {
+            let coordinate = mapView.convert(gestureRecognizer.location(in: mapView), toCoordinateFrom: mapView)
+            vm.chosenLatitude = coordinate.latitude
+            vm.chosenLongitude = coordinate.longitude
+            
+            mapView.removeAnnotations(mapView.annotations.filter { $0.title == "Yeni Mekan" })
+            let pin = MKPointAnnotation()
+            pin.coordinate = coordinate
+            pin.title = "Yeni Mekan"
+            mapView.addAnnotation(pin)
+            
+            resetFields()
+            showInfoCard()
+        }
+    }
+
+    @objc private func didTapImage() {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        results.first?.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] image, _ in
+            if let img = image as? UIImage {
+                DispatchQueue.main.async {
+                    self?.imagePickerView.image = img
+                    self?.imagePickerView.contentMode = .scaleAspectFill
+                }
+            }
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let lastLocation = locations.last, isFirstTime else { return }
+        mapView.setRegion(MKCoordinateRegion(center: lastLocation.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)), animated: true)
+        isFirstTime = false
+    }
+
+    private func focusOnSelectedLocation() {
+        if let target = selectedLocationFromList {
+            let coordinate = CLLocationCoordinate2D(latitude: target.latitude, longitude: target.longitude)
+            mapView.setRegion(MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)), animated: true)
+            isFirstTime = false
+        }
+    }
+
+    private func showInfoCard() {
+        infoCardBottomConstraint?.constant = -100
+        UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 1, options: .curveEaseOut) { self.view.layoutIfNeeded() }
+    }
+
+    private func hideInfoCard() {
+        infoCardBottomConstraint?.constant = 500
+        UIView.animate(withDuration: 0.4) { self.view.layoutIfNeeded() }
     }
 }

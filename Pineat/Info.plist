@@ -3,9 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>&quot;Mekanları haritada görebilmeniz için konumunuza ihtiyacımız var.&quot;</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>&quot;Mekanları haritada görebilmeniz için konumunuza ihtiyacımız var.&quot;</string>
+	<string>&quot;Mekanları haritada gösterebilmemiz için konum izninize ihtiyacımız var.&quot;</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

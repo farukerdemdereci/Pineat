@@ -5,7 +5,6 @@
 //  Created by Faruk Dereci on 24.12.2025.
 //
 
-import Foundation
 import UIKit
 import Kingfisher
 
@@ -15,13 +14,13 @@ class ListCustomCell: UITableViewCell {
     
     // MARK: - UI Elements
     private let restaurantImageView: UIImageView = {
-        let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFill
-        imageView.backgroundColor = .systemGray6
-        imageView.layer.cornerRadius = 8
-        imageView.clipsToBounds = true
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        return imageView
+        let iv = UIImageView()
+        iv.contentMode = .scaleAspectFill
+        iv.backgroundColor = .systemGray6
+        iv.layer.cornerRadius = 8
+        iv.clipsToBounds = true
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        return iv
     }()
     
     private let titleLabel: UILabel = {
@@ -51,21 +50,47 @@ class ListCustomCell: UITableViewCell {
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        setupCell()
+        setupViews()
     }
     
-    required init?(coder: NSCoder) { fatalError() }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
-    private func setupCell() {
-        let mainStack = UIStackView(arrangedSubviews: [titleLabel, descriptionLabel, distanceLabel])
-        mainStack.axis = .vertical
-        mainStack.spacing = 7
-        mainStack.alignment = .leading
-        mainStack.distribution = .fill
-        mainStack.translatesAutoresizingMaskIntoConstraints = false
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        restaurantImageView.kf.cancelDownloadTask() // Kingfisher görevini iptal et
+        restaurantImageView.image = nil
+        titleLabel.text = nil
+        descriptionLabel.text = nil
+        distanceLabel.text = nil
+    }
+}
+
+// MARK: - Configuration
+extension ListCustomCell {
+    func configure(title: String, description: String, imageUrl: String?, distance: String) {
+        titleLabel.text = title
+        descriptionLabel.text = description
+        distanceLabel.text = distance
+        
+        if let urlString = imageUrl, let url = URL(string: urlString) {
+            restaurantImageView.kf.setImage(with: url, placeholder: UIImage(systemName: "photo"))
+        } else {
+            restaurantImageView.image = UIImage(systemName: "photo")
+        }
+    }
+}
+
+// MARK: - Setup Views
+extension ListCustomCell {
+    private func setupViews() {
+        let infoStack = UIStackView(arrangedSubviews: [titleLabel, descriptionLabel, distanceLabel])
+        infoStack.axis = .vertical
+        infoStack.spacing = 7
+        infoStack.alignment = .leading
+        infoStack.translatesAutoresizingMaskIntoConstraints = false
 
         contentView.addSubview(restaurantImageView)
-        contentView.addSubview(mainStack)
+        contentView.addSubview(infoStack)
         
         NSLayoutConstraint.activate([
             restaurantImageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
@@ -73,29 +98,11 @@ class ListCustomCell: UITableViewCell {
             restaurantImageView.widthAnchor.constraint(equalToConstant: 94),
             restaurantImageView.heightAnchor.constraint(equalToConstant: 80),
             
-            mainStack.leadingAnchor.constraint(equalTo: restaurantImageView.trailingAnchor, constant: 12),
-            mainStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            mainStack.centerYAnchor.constraint(equalTo: restaurantImageView.centerYAnchor),
-            
-            mainStack.topAnchor.constraint(greaterThanOrEqualTo: contentView.topAnchor, constant: 8),
-            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -8)
+            infoStack.leadingAnchor.constraint(equalTo: restaurantImageView.trailingAnchor, constant: 12),
+            infoStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            infoStack.centerYAnchor.constraint(equalTo: restaurantImageView.centerYAnchor),
+            infoStack.topAnchor.constraint(greaterThanOrEqualTo: contentView.topAnchor, constant: 8),
+            infoStack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -8)
         ])
-    }
-    
-    func configure(title: String, description: String, imageUrl: String?, distance: String) {
-        titleLabel.text = title
-        descriptionLabel.text = description
-        distanceLabel.text = distance
-        
-        if let urlString = imageUrl, !urlString.isEmpty, let url = URL(string: urlString) {
-            restaurantImageView.kf.setImage(with: url, placeholder: UIImage(systemName: "photo"))
-        } else {
-            restaurantImageView.image = UIImage(systemName: "photo")
-        }
-    }
-    
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        restaurantImageView.image = nil
     }
 }

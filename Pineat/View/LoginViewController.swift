@@ -9,7 +9,7 @@ import UIKit
 
 class LoginViewController: UIViewController {
 
-    private let vm = AuthViewModel()
+     var vm: AuthViewModel!
     
     // MARK: - UI Elements
     private let backgroundImageView: UIImageView = {
@@ -41,7 +41,6 @@ class LoginViewController: UIViewController {
         
         let blurEffect = UIBlurEffect(style: .light)
         let blurView = UIVisualEffectView(effect: blurEffect)
-        blurView.frame = view.bounds
         blurView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.insertSubview(blurView, at: 0)
         
@@ -129,12 +128,101 @@ class LoginViewController: UIViewController {
         setupViews()
         setupActions()
         setupKeyboardObservers()
+    }
+}
 
-        view.addGestureRecognizer(UITapGestureRecognizer(target: view, action: #selector(UIView.endEditing(_:))))
+// MARK: - Actions
+extension LoginViewController {
+    private func setupActions() {
+        signInButton.addTarget(self, action: #selector(signInButtonClicked), for: .touchUpInside)
+        createAnAccountButton.addTarget(self, action: #selector(createAnAccountButtonClicked), for: .touchUpInside)
+        resetPasswordButton.addTarget(self, action: #selector(resetPasswordButtonClicked), for: .touchUpInside)
+        
+        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard)))
     }
     
-    // MARK: - Setup
-    func setupViews() {
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
+    }
+
+    @objc private func signInButtonClicked() {
+        guard let email = emailTextField.text, !email.isEmpty,
+              let password = passwordTextField.text, !password.isEmpty else {
+            showAlert(title: "Hata", message: "Lütfen tüm alanları doldurun.")
+            return
+        }
+        
+        setLoading(true)
+        
+        Task {
+            await vm.signIn(email: email, password: password)
+            setLoading(false)
+            
+            if let error = vm.errorMessage {
+                showAlert(title: "Hata", message: error)
+                
+            } else {
+                if let sceneDelegate = view.window?.windowScene?.delegate as? SceneDelegate {
+                    sceneDelegate.resetToMainApp()
+                }
+            }
+        }
+    }
+    
+    @objc private func createAnAccountButtonClicked() {
+        let signUpVC = SignUpViewController(vm: vm)
+        signUpVC.modalPresentationStyle = .fullScreen
+        present(signUpVC, animated: true)
+    }
+    
+    @objc private func resetPasswordButtonClicked() {
+        print("Şifre sıfırlama tıklandı.")
+    }
+    
+    private func setLoading(_ isLoading: Bool) {
+        if isLoading {
+            activityIndicator.startAnimating()
+            signInButton.setTitle("", for: .normal)
+            signInButton.isEnabled = false
+        } else {
+            activityIndicator.stopAnimating()
+            signInButton.setTitle("Giriş Yap", for: .normal)
+            signInButton.isEnabled = true
+        }
+    }
+    
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Tamam", style: .default))
+        present(alert, animated: true)
+    }
+}
+
+// MARK: - Keyboard Handling
+extension LoginViewController {
+    private func setupKeyboardObservers() {
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
+    }
+
+    @objc private func keyboardWillShow(notification: NSNotification) {
+        if let keyboardSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
+            if self.view.frame.origin.y == 0 {
+                self.view.frame.origin.y -= keyboardSize.height / 3
+            }
+        }
+    }
+
+    @objc private func keyboardWillHide(notification: NSNotification) {
+        if self.view.frame.origin.y != 0 {
+            self.view.frame.origin.y = 0
+        }
+    }
+}
+
+// MARK: - Setup Views
+extension LoginViewController {
+    private func setupViews() {
         view.addSubview(backgroundImageView)
         view.addSubview(pageTitleLabel)
         view.addSubview(glassCardView)
@@ -187,71 +275,5 @@ class LoginViewController: UIViewController {
             activityIndicator.centerYAnchor.constraint(equalTo: signInButton.centerYAnchor)
         ])
     }
-    
-    private func setupActions() {
-        signInButton.addTarget(self, action: #selector(signInButtonClicked), for: .touchUpInside)
-        createAnAccountButton.addTarget(self, action: #selector(createAnAccountButtonClicked), for: .touchUpInside)
-        resetPasswordButton.addTarget(self, action: #selector(resetPasswordButtonClicked), for: .touchUpInside)
-    }
-
-    @objc func signInButtonClicked() {
-        guard let email = emailTextField.text, !email.isEmpty,
-              let password = passwordTextField.text, !password.isEmpty else {
-            showAlert(title: "Hata", message: "Lütfen tüm alanları doldurun.")
-            return
-        }
-        
-        activityIndicator.startAnimating()
-        signInButton.setTitle("", for: .normal)
-        signInButton.isEnabled = false
-        
-        Task {
-            await vm.signIn(email: email, password: password)
-            
-            DispatchQueue.main.async {
-                self.activityIndicator.stopAnimating()
-                self.signInButton.setTitle("Giriş Yap", for: .normal)
-                self.signInButton.isEnabled = true
-                
-                if let error = self.vm.errorMessage {
-                    self.showAlert(title: "Hata", message: error)
-                } else {
-                    self.performSegue(withIdentifier: "toListVC", sender: nil)
-                }
-            }
-        }
-    }
-    
-    @objc func createAnAccountButtonClicked() { performSegue(withIdentifier: "toSignUpVC", sender: nil) }
-    @objc func resetPasswordButtonClicked() { print("Reset Tıklandı") }
-    
-    func showAlert(title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Tamam", style: .default))
-        self.present(alert, animated: true)
-    }
-    
-    // MARK: - Keyboard Handling
-        private func setupKeyboardObservers() {
-            NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
-        }
-
-        @objc private func keyboardWillShow(notification: NSNotification) {
-            if let keyboardSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
-                if self.view.frame.origin.y == 0 {
-                    self.view.frame.origin.y -= keyboardSize.height / 2
-                }
-            }
-        }
-
-        @objc private func keyboardWillHide(notification: NSNotification) {
-            if self.view.frame.origin.y != 0 {
-                self.view.frame.origin.y = 0
-            }
-        }
-
-        deinit {
-            NotificationCenter.default.removeObserver(self)
-        }
 }
+

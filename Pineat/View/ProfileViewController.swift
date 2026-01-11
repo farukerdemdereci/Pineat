@@ -1,5 +1,5 @@
 //
-//  LogoutViewController.swift
+//  ProfileViewController.swift
 //  PinEatUIKit
 //
 //  Created by Faruk Dereci on 26.12.2025.
@@ -9,10 +9,18 @@ import UIKit
 import Foundation
 import Supabase
 
-class LogoutViewController: UIViewController {
+class ProfileViewController: UIViewController {
 
-    // MARK: - Properties
-    private let vm = AuthViewModel()
+    private let vm: AuthViewModel
+    
+    init(vm: AuthViewModel) {
+        self.vm = vm
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     private lazy var logoutButton: UIButton = {
         let button = UIButton(type: .system)
@@ -29,11 +37,27 @@ class LogoutViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        setupView()
+        setupViews()
     }
+}
 
-    // MARK: - UI Setup
-    private func setupView() {
+// MARK: - Actions
+extension ProfileViewController {
+    @objc private func logoutTapped() {
+        Task {
+            await vm.signOut()
+            
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let sceneDelegate = scene.delegate as? SceneDelegate {
+                sceneDelegate.resetToLogin()
+            }
+        }
+    }
+}
+
+// MARK: - Setup Views
+extension ProfileViewController {
+    private func setupViews() {
         view.addSubview(logoutButton)
         
         logoutButton.addTarget(self, action: #selector(logoutTapped), for: .touchUpInside)
@@ -46,18 +70,5 @@ class LogoutViewController: UIViewController {
             logoutButton.heightAnchor.constraint(equalToConstant: 50)
         ])
     }
-
-    // MARK: - Actions
-    @objc private func logoutTapped() {
-        Task {
-            await vm.signOut()
-            
-            DispatchQueue.main.async {
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let sceneDelegate = scene.delegate as? SceneDelegate {
-                    sceneDelegate.resetToLogin()
-                }
-            }
-        }
-    }
 }
+

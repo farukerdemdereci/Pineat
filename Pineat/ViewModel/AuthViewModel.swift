@@ -6,43 +6,58 @@
 //
 
 import Foundation
-import Supabase
 
+@MainActor
 class AuthViewModel: ObservableObject {
+    
     @Published var errorMessage: String?
+    @Published var isLoading: Bool = false
     
-    private let authService: AuthServiceProtocol
+    let authService: AuthServiceProtocol
     
-    init(authService: AuthServiceProtocol = SupabaseManager.shared) {
+    init(authService: AuthServiceProtocol) {
         self.authService = authService
     }
     
     func signIn(email: String, password: String) async {
+        isLoading = true
+        errorMessage = nil
+        
         do {
             try await authService.signIn(email: email, password: password)
-
+            isLoading = false
+            
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-            }
+            self.errorMessage = error.localizedDescription
+            isLoading = false
         }
     }
-    func signOut() async {
-        do {
-            try await authService.signOut()
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-            }
-        }
-    }
+    
     func signUp(email: String, password: String) async {
+        isLoading = true
+        errorMessage = nil
+        
         do {
             try await authService.signUp(email: email, password: password)
+            isLoading = false
+            
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-            }
+            self.errorMessage = error.localizedDescription
+            isLoading = false
+        }
+    }
+    
+    func signOut() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            try await authService.signOut()
+            isLoading = false
+            
+        } catch {
+            self.errorMessage = error.localizedDescription
+            isLoading = false
         }
     }
 }
